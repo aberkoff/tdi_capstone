@@ -1,0 +1,13 @@
+.ipynb_checkpoints/
+__pycache__/
+cache/
+logs/
+notebooks/
+pickles/
+datasets/
+presentation_materials/
+set_postgres_conn
+electronic_checkouts_by_title.csv
+*.pkd
+*.log
+.env
