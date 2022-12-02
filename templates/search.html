@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>{% block title %} Search for an Audiobook: {% endblock %}</h2>
+
+	<form method="post">
+    <div class="form-group">
+		 <label for="search_type">search by:</label>
+		 <select class = "form-select" id="search_type" name="search_type">
+			 <option value="title">Title</option>
+			 <option value="author">Author</option>
+			 <option value="sc_number">SC Number</option>
+		 </select> 
+    </div>
+    <div class="form-group">
+        <input type="text" name="search_val"
+               placeholder="enter title, author or SC Number" class="form-control"
+               value="{{ request.form['search_val'] }}"></input>
+    </div>
+
+    <div class="form-group">
+        <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+ </form>
+	 
+	 <table class="table">
+	   <thead>
+	     <tr>
+	       <th scope="col">#</th>
+	       <th scope="col">SC Number</th>
+	       <th scope="col">Title</th>
+	       <th scope="col">Author</th>
+	     </tr>
+	   </thead>
+	   <tbody>
+         {% for item in data %}
+	 	     <tr>
+	 	       <th scope="row">{{loop.index}}</th>
+	 	       <td>{{item[0]}}</td>
+	 	       <td>{{item[1]}}</td>
+	 	       <td>{{item[2]}}</td>
+	 	     </tr>
+         {% endfor %}
+	   </tbody>
+	 </table>
+	 
+	 
+
+{% endblock %}
+
+
