@@ -18,7 +18,6 @@ def index():
 	 
 @app.route('/search', methods=('GET', 'POST'))
 def search():
-	search = BookSearchForm(request.form)
 	if request.method == 'POST':
 		search_val = request.form['search_val']
 		search_type = request.form['search_type']
