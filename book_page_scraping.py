@@ -12,8 +12,6 @@ from postgres_interaction import get_db_engine, get_book_ids
 
 
 
-
-
 @retry(exceptions=Exception, tries=5, delay=2, 
        max_delay=None, backoff=1, jitter=(1,10), logger=logging.getLogger(__name__))
 def scrape_book_page(book_id):
