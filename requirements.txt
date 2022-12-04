@@ -1,8 +1,6 @@
 flask
 pandas
 sqlalchemy
-werkzeug
-os
 json
 requests
 bs4
@@ -12,5 +10,4 @@ retry
 argparse
 logging
 datetime
-sys
 numpy
