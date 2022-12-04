@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}MyNextListen: {{data['title']}}{% endblock %}
+{% block content %}
+
+
+<div class="row">
+	<div class="col-4">
+		{% if data['jacket.large'] -%}
+		<img class="img-fluid" src="{{data['jacket.large']}}" alt="Cover Image">
+		{% else -%}
+		<img class="img-fluid" src="{{ url_for('static', filename='headphone_icon_med.jpg') }}" alt="Default Cover Image">
+		{% endif %}
+    </div>
+    <div class="col">
+		<h3>
+			{{data['title']}}
+  			{% if data['subtitle'] -%}
+  				<br/><small class="text-muted">{{data['subtitle']}}</small>
+  				{% endif %}
+		</h3>
+		<h4>{{parse_author(data['author'])}}</h4>
+	  <p>
+	  {{data['description']}}
+	  </p>
+    </div>
+</div>
+	
+
+<div class = "row">
+	<a href={{"https://seattle.bibliocommons.com/v2/record/" + data['id']}} >View book on SPL website.</a>
+</div>
+<div class = "row">
+	<a href="{{ url_for('search') }}">Search for a new book.</a>
+</div>
+
+{% endblock %}
