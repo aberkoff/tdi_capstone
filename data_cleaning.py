@@ -103,6 +103,16 @@ def extract_first_isbn(isbns):
             if isbn is not None:
                 return isbn.group(0)
     return np.NAN
+	
+def parse_author(author):
+	if not author:
+		return "Author not listed"
+	parts = list(map(str.strip, author.split(',')))
+	if len(parts) == 1:
+		return parts[0]
+	else:
+		return " ".join([parts[1], parts[0]])	
+	
 	 
 # fields we want:
 # id - the SC number (col 0)
