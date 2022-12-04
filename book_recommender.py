@@ -23,13 +23,6 @@ def search():
 	if request.method == 'POST':
 		search_val = request.form['search_val']
 		search_type = request.form['search_type']
-		# with engine.connect() as conn:
-		# 	data = conn.execute(text(
-		# 		"""
-		# 		SELECT * FROM book_ids LIMIT 10;
-		# 		"""
-		# 	))
-			# conn.commit()
 		data = search_books(search_type, search_val)
 		return render_template('search.html', data=data)
 	return render_template('search.html')
