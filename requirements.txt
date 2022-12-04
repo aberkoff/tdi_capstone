@@ -7,3 +7,4 @@ retrying
 retry
 numpy
 gunicorn
+psycopg2
