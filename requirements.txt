@@ -1,0 +1,16 @@
+flask
+pandas
+sqlalchemy
+werkzeug
+os
+json
+requests
+bs4
+random
+retrying
+retry
+argparse
+logging
+datetime
+sys
+numpy
