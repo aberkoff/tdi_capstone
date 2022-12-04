@@ -1,13 +1,8 @@
 flask
 pandas
 sqlalchemy
-json
 requests
 bs4
-random
 retrying
 retry
-argparse
-logging
-datetime
 numpy
