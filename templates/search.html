@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-
+{% block title %} MyNextListen: Search {% endblock %}
 {% block content %}
-<h2>{% block title %} Search for an Audiobook: {% endblock %}</h2>
+<h2>Search for an Audiobook: </h2>
 
 	<form method="post">
     <div class="form-group">
@@ -22,27 +22,46 @@
         <button type="submit" class="btn btn-primary">Search</button>
     </div>
  </form>
-	 
 	 <table class="table">
 	   <thead>
 	     <tr>
 	       <th scope="col">#</th>
-	       <th scope="col">SC Number</th>
+		   <th scope="col">Cover</th>
 	       <th scope="col">Title</th>
 	       <th scope="col">Author</th>
+		   
 	     </tr>
 	   </thead>
 	   <tbody>
          {% for item in data %}
 	 	     <tr>
 	 	       <th scope="row">{{loop.index}}</th>
-	 	       <td>{{item[0]}}</td>
-	 	       <td>{{item[1]}}</td>
-	 	       <td>{{item[2]}}</td>
+			   	<td>
+					<div style="width: 104px;">
+					<a href="{{ url_for('book', book_id=item['id']) }}">
+					{% if item['jacket.small'] -%}					
+					<img src = "{{item['jacket.small']}}" class="img-thumbnail img-fluid rounded">
+					</a>
+	 			   	{% else -%}
+	 			   	<img src = "static/headphone_icon_small.jpg" class="img-thumbnail img-fluid rounded">
+	 			   	{% endif %}
+					</div>
+				</td>
+			   	<td>
+					<a href="{{ url_for('book', book_id=item['id']) }}">
+					{% if item['subtitle'] -%}
+						{{": ".join([item['title'], item['subtitle']])}}</td>
+			   	 	{% else -%}
+				 		{{item['title']}}
+					{% endif %}
+					</a>
+				</td>
+	 	       <td>{{item['author']}}</td>
 	 	     </tr>
          {% endfor %}
 	   </tbody>
 	 </table>
+
 	 
 	 
 
