@@ -1,13 +1,45 @@
 import sqlalchemy as db
 from sqlalchemy import text, MetaData
 import pandas as pd
-import time
 import os
 import logging
 import argparse
+import sys
 
 
-def drop_table(engine, table_name):
+
+def search_books(search_type, search_val, table_name='book_features'):
+	table = metadata_obj.tables[table_name]
+	sc_num = table.c['id']
+	icon_url = table.c['jacket.small']
+	title = table.c['title']
+	subtitle = table.c['subtitle']
+	author = table.c['author']
+	
+	if search_type == 'title':
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).fetch(10)
+	elif search_type == 'author':
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).fetch(10)
+	elif search_type == 'sc_number':
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(sc_num == search_val)
+	else:
+		return None
+	with engine.connect() as conn:
+		result_set = conn.execute(select_statement) # note: this is an iterable!!!!
+		conn.commit()
+	return result_set
+		
+def get_book_info(book_id):
+	table = metadata_obj.tables['book_features']
+	sc_num = table.c['id']
+	select_statement = db.select(table).where(sc_num == book_id)
+	with engine.connect() as conn:
+		result_set = conn.execute(select_statement) # note: this is an iterable!!!!
+		conn.commit()
+	return result_set.first()
+
+	
+def drop_table(table_name):
     with engine.connect() as conn:
         conn.execute(text(
             """
@@ -16,12 +48,12 @@ def drop_table(engine, table_name):
         ))
         
         
-def add_record(engine, df, table_name):
+def add_record(df, table_name):
     with engine.connect() as conn:
         df.to_sql(table_name, conn, if_exists = 'append')
         conn.commit()
         
-def read_head(engine, table, head_len = 10):
+def read_head(table, head_len = 10):
 	with engine.connect() as conn:
 		select_statement = table.select().fetch(head_len)
 		result_set = conn.execute(select_statement)
@@ -50,54 +82,94 @@ def get_db_engine():
 
 
 
-table_names = ['book_ids', 'book_features', 'related_books']
+
+def parse_read(args):
+	table_name = args.table_name
+	print("reading the first {} rows of {}...\n".format(args.length, table_name))
+	table = metadata_obj.tables[table_name]
+	read_head(table, args.length)
+	
+def parse_write(args):
+	table_name = args.table_name
+	print("writing {} to {}...\n".format(args.filename, table_name))
+	table = metadata_obj.tables[table_name]
+	df = pd.read_pickle(filename)
+	add_record(df, table_name)
+	
+def parse_delete(args):
+	table_name = args.table_name
+	table = metadata_obj.tables[table_name]
+	logging.info('confirming deletion of table {}'.format(table_name))
+	yes_no = input('are you sure you want to delete {}? y/n: '.format(table_name))
+	if lower(yes_no) in {'y', 'yes'}:
+		print('dropping table {}'.format(table_name))
+		drop_table(table)
+
+def parse_search(args):
+	result = search_books(args.by, args.value, args.table_name)
+	args.outfile.write(str(list(result)))
+	
+	
+	
+	
+
+engine = get_db_engine()
+metadata_obj = MetaData()
+metadata_obj.reflect(bind=engine)
+table_names = ['book_ids', 'book_features', 'related_books', 'tester']
 
 
-def get_valid_table_name(name):
-	while name not in(table_names):
-		print("that is not a table in our database. our tables are:")
-		print("\n".join(table_names))
-		name = input("please select a table: ")
-	print("thank you. you have selected: {}".format(name))
-	return name
+
 
 def main():
 	parser = argparse.ArgumentParser()
-	group = parser.add_mutually_exclusive_group()	
-	group.add_argument("-r", "--read", help="read sql table", action="store_true")
-	group.add_argument("-w", "--write", help="write sql table", action="store_true")
-	group.add_argument("-d", "--delete", help="delete sql table", action="store_true")
-	parser.add_argument("table_name", help="the sql table name")
+	subparsers = parser.add_subparsers()
+	
+	read = subparsers.add_parser('read', aliases=['r'], help = "read the first [LENGTH] entries of [table_name]")
+	read.add_argument('table_name', choices=table_names, help = 'name of table to read from')
+	read.add_argument('--length', '-l', default='10', type=int, help = 'how many entries to read, default = 10')
+	read.set_defaults(func=parse_read)
+	
+	write = subparsers.add_parser('write', aliases=['w'], help = "write a pickled pandas dataframe to an sql table")
+	write.add_argument('filename', help = 'name of pickled pandas dataframe')
+	write.add_argument('table_name', choices = table_names, help = 'name of table to read from')
+	write.set_defaults(func=parse_write)
+	
+	delete = subparsers.add_parser('delete', aliases=['d'], help = "drop an sql table")
+	delete.add_argument('table_name', choices = table_names, help = 'name of table to drop')
+	delete.set_defaults(func=parse_delete)
+
+	search = subparsers.add_parser('search', aliases=['s'], help = "search an sql table")
+	search.add_argument('table_name', choices = table_names, help = 'name of table to search')
+	search.add_argument('--by', 
+						choices = ['sc_number', 'title', 'author'],
+						default='sc_number', 
+						help = 'what to search by (default = sc_number)'
+						)
+	search.add_argument('--value', '-v', help = "value to search for", required = True)
+	parser.add_argument('outfile', nargs='?', type=argparse.FileType('w'), default=sys.stdout, help = "where to print search results")
+	search.set_defaults(func=parse_search)
+	
+	
+
+
 
 	args = parser.parse_args()
+	args.func(args)
 	logfile = 'logs/postgres_interaction.log'
 	
 	logging.basicConfig(filename=logfile, 
 								level=logging.INFO,
 								format = '%(asctime)s %(message)s'
 								)
-	table_name = get_valid_table_name(args.table_name)
-	engine = get_db_engine()
-	metadata_obj = MetaData()
-	metadata_obj.reflect(bind=engine)
-	
-	if args.write:
-		logging.info('writing to table {}'.format(table_name))
-		filename = input("enter path for the pickled dataframe to write to {}:\n".format(table_name))
-		df = pd.read_pickle(filename)
-		add_record(engine, df, table_name)
-	elif args.delete:
-		logging.info('confirming deletion of table {}'.format(table_name))
-		yes_no = input('are you sure you want to delete {}? y/n: '.format(table_name))
-		if lower(yes_no) in {'y', 'yes'}:
-			drop_table(engine, book_ids)
-	elif args.read:
-		logging.info('reading from table {}'.format(table_name))
-		table = metadata_obj.tables[table_name]
-		read_head(engine, table)
-	else:
-		logging.info('no option selected')
-		print('no valid option selected. please run again.')
+
+	# elif args.search:
+	# 	logging.info('searching {}'.format(table_name))
+	# 	table = metadata_obj.tables[table_name]
+	# 	read_head(engine, table)
+	# else:
+	# 	logging.info('no option selected')
+	# 	print('no valid option selected. please run again.')
 				
 
 	logging.info("done")
