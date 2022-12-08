@@ -2,15 +2,25 @@ import pandas as pd
 import re
 import numpy as np
 import argparse
+import spacy
+nlp = spacy.load("en_core_web_sm")
 
 
 
-def get_book_table():
-	return pd.read_pickle('all_books.pkl.tar.gz')
-	 
-def get_related_book_table():
-	return pd.read_pickle('related_books.pkl.tar.gz')
+def fix_audio_errors(df):
+	# A children's book called "The Case of The Weird Blue Chicken" whose pubdate is listed as 1917 instead of 2017
+	df.at['S30C3286809', 'pub_year'] = 2017 
 
+def fix_related_errors(df):
+	# these 4 books are listed as 'government documents' for some reason...
+	df.loc[ df['audioId'] == 'S30C3792290', 'contentType'] = 'NONFICTION' # From a Taller Tower by Seamus McGraw
+	df.loc[ df['audioId'] == 'S30C3172736', 'contentType'] = 'NONFICTION' # Last Stand by Seamus Punke
+	df.loc[ df['audioId'] == 'S30C3792290', 'contentType'] = 'NONFICTION' # All I Ever Wanted by Kathy Valentine
+	df.loc[ df['audioId'] == 'S30C3792290', 'contentType'] = 'FICTION' # Villette by Charlotte Bronte
+	'Yougn adult fiction', 'Ffiction'
+
+def fix_checkout_errors(df):
+	pass
 
 def parse_about_pub(pub_list):
 	if not pub_list:
@@ -32,10 +42,57 @@ assert parse_about_pub(['Ashland : Blackstone Audio, Inc., 2009.']) == (2009, 'B
 assert parse_about_pub(['[New York] : Penguin Random House Audio, [2021]']) == (2021, 'Penguin Random House Audio')
 assert parse_about_pub(['Ashland : Blackstone Audio, 2009.', 'Ashland : Blackstone Audio, Inc., 2009.']) == (2009, 'Blackstone Audio')
 
+#'edita brychta as anise, jonathan cake as kurt muller, heidi dippold as sara muller, anna lyse erikson as babette muller, susannah fiedling as marthe de brancovis, lovensky jean-baptiste as joseph taj jegaraj as joshua muller, susan sullivan as fanny farrelly, patrick wenk-wolff as teck de brancovis, matthew wolf as david farrelly, adam wylie as bodo muller ; directed by'
+#'edward asner (the senator), ella joyce (professor hill), paul winfield (judge thomas);
+# performer_intros = {'read by', 'performed by', 'narrated by', 'presented by',
+#        'told by', 'instruction and music by', 'narrated and vocals by',
+#        'hosted by', 'reading by',
+#        'featuring', 'introduced by',
+#        'preformed by', 'ready by', 'performance by', 'live lecture by',
+#        'and by', 'lecture presented by', 'text read by',
+#        'spanish book read by', 'starring','and performed by',
+#        'written and performed by', 'peformed by',
+#        'music by', 'reading of 2013 book by',
+#        'humorous monologues','performed by', 'interviews by',
+#        'song performed by', 'narration and music by', 'perfomed by',
+#        'full cast recording','inspector lestrade played by',
+#        'story selections read by',
+#        'starring:','spoken by', 'directed by','introduction by',
+#        'songs written and performed by', 'this program is read by',
+#        'lectures by', 'volume 1 narrated by',
+#        'starring', 'narrated by',
+#        'with additional narration by',
+#        'narration, music and vocals by',
+#        'with an afterword by', 'story read by',
+#        'instructed by', '[read by', 'music by',
+#        'introduction read by', 'audiobook read by',
+#        'abridged and read by', 'comedy routines performed by',
+#        'written, presented & performed by', 'music by', 'red by',
+#        'narratee by', 'starring by', 'music composed & performed by',
+#        'written and read by', 'performed by',
+#        'translation, essays & commentary by', 'translation', 'essays & commentary by','narrator by',
+#        'foreward read by', 'music by',
+#        'readings by','perfomrmed by',
+#        'bbc full-cast television soundtrack starring','narrated by',
+#        'all selections performed by',
+#        'essays read by', 'sessions 1-3 narrated by',
+#        'davy crockett read by', 'johnny appleseed read by',
+#        'dramatization by', 'excerpts of classical works, by',
+#        'introduced by', 'read and performed by'}
+	   
+def parse_performers(perf_list):
+    if not pd.api.types.is_list_like(perf_list):
+        return np.nan
+    perfs = set()
+    for perf in perf_list:
+        doc = nlp(perf)
+        for ent in doc.ents:
+            if ent.label_ == 'PERSON':
+                perfs.add(ent.text)
+    return list(perfs)
 
 
-# parse book length from 'fields.DETAILS.DESCRIPTION' to get length of book in seconds
-
+# parse book length from 'fields.NOTES.GENERAL' to get length of book in seconds
 def get_len_from_notes(notes):
     if pd.api.types.is_list_like(notes):
         for note in notes:
@@ -46,7 +103,8 @@ def get_len_from_notes(notes):
                 secs = int(res.group(3))
                 return hrs + minutes + secs
     return np.NAN
-
+	
+# parse book length from 'fields.DETAILS.DESCRIPTION' to get length of book in seconds
 def get_len_from_desc(desc):
 	if pd.api.types.is_list_like(desc):
 		for d in desc:
@@ -61,26 +119,78 @@ def get_len_from_desc(desc):
 	
 assert get_len_from_desc(['1 online resource (1 audio file (03 hr., 09 min., 53 sec.))']) == 11393.0
 
-def get_subjects(subject_field):
-	if not pd.api.types.is_list_like(subject_field):
-		return np.nan
-	else:
-		subjects = set()
-		for subj in subject_field:
-			if subj[-1] == '.':
-				subj = subj[:-1].lower()
-		subjects.update(s.strip() for s in subj.split(' — '))
-		return list(subjects)
+
 		
+bad_entries = {'downloadable audio books', 'audiobooks', 
+	'livres audio', 'juvenile sound recordings', 'live sound recordings'
+	'sound recordings', 'unabridged audiobooks', 'downloadable audiobooks', 
+	'04', '2', '3', '4', '5', 'bk. 1', 'bk. 2', 'bk. 3', 'bk. bne',
+	'book 1', 'downloadable video recordings', 'ebook',
+	'electronic resource','electronic audio books', 'electronic book',
+	'electronic books','electronic resource', 'in literature', 'Internet videos',
+ 	'Large print books','Large type books', 'sound recordings', 'streaming audio', 'talking books', 'fiction', '', 
+	')', '.)'
+}
+misspellings = {
+	'apologetic writings': 'apologetic works',
+	'yougn adult fiction': 'young adult fiction', 
+	'action and sdventure comics': 'action and adventure comics'
+	'autobiographies': 'autobiography'
+	'bildsdungsroman': 'bildungsromans',
+	'bildungromans': 'bildungsromans',
+	'biographies': 'biography',
+	'cozy mystery stories': 'cozy mysteries',
+	'electornic books': 'electronic books',
+	'essays': 'essay',
+	'fjuvenile fiction', 'juvenile fiction',
+	'fcition': 'fiction',
+	'fction': 'fiction',
+	'ffiction': 'fiction',
+	'ficion': 'fiction',
+	'ficition': 'fiction',
+	'ficton': 'fiction',
+	'fictions': 'fiction',
+	'fiction.fiction': 'fiction',
+	'first person narratives': 'first person narrative'
+	'horror tales': 'horror stories',
+	'humerous fiction': 'humorous fiction',
+	'juvenilefiction': 'juvenile fiction',
+	'juvenile materials': 'juvenile works',
+	'juvneile fiction': 'juvenile fiction',
+	'legal fiction (literature': 'legal fiction',
+	'legal fiction (literature)': 'legal fiction',
+	'personal narratives, afghani' : 'personal narratives, afghan',
+	'pscyhological fiction' : 'psychological fiction',
+	'romantic supsense fiction': 'romantic suspense fiction',
+	'romantic suspence fiction': 'romantic suspense fiction',
+}
+
 def get_genres(genre_field):
 	if not pd.api.types.is_list_like(genre_field):
 		return np.nan
 	else:
 		genres = set()
 		for genre in genre_field:
-			if genre[-1] == '.':
-				genre = genre[:-1]
-		genres.add(genre.lower())
+			lower = genre.lower()
+			if lower[-1] == '.':
+				lower = lower[:-1]
+			if lower in misspellings:
+				lower = misspellings[lower]
+			if lower not in bad_genres:
+				genres.add(lower)
+				
+			if '^' in lower:
+				subs = (s.strip() for s in lowercase.split('^'))
+			elif "&lt;delimit&gt;" in lower:
+				subs = (s.strip() for s in lowercase.split("&lt;delimit&gt;"))
+			elif " - " in lower:
+				subs = (s.strip() for s in lowercase.split(' — '))
+			if subs:
+				for sub_genre in subs:
+					if sub_genre in misspellings:
+						sub_genre = misspellings[sub_genre]
+					if sub_genre not in bad_genres:
+						genres.add(sub_genre)
 		return list(genres)
 
 def first_list_entry(field, null = np.nan):
