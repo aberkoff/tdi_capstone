@@ -9,7 +9,7 @@ nlp = spacy.load("en_core_web_sm")
 
 def fix_audio_errors(df):
 	# A children's book called "The Case of The Weird Blue Chicken" whose pubdate is listed as 1917 instead of 2017
-	df.at['S30C3286809', 'pub_year'] = 2017 
+	df.at['S30C3286809', 'publisher_year'] = 2017 
 
 def fix_related_errors(df):
 	# these 4 books are listed as 'government documents' for some reason...
@@ -17,7 +17,6 @@ def fix_related_errors(df):
 	df.loc[ df['audioId'] == 'S30C3172736', 'contentType'] = 'NONFICTION' # Last Stand by Seamus Punke
 	df.loc[ df['audioId'] == 'S30C3792290', 'contentType'] = 'NONFICTION' # All I Ever Wanted by Kathy Valentine
 	df.loc[ df['audioId'] == 'S30C3792290', 'contentType'] = 'FICTION' # Villette by Charlotte Bronte
-	'Yougn adult fiction', 'Ffiction'
 
 def fix_checkout_errors(df):
 	pass
@@ -42,43 +41,43 @@ assert parse_about_pub(['Ashland : Blackstone Audio, Inc., 2009.']) == (2009, 'B
 assert parse_about_pub(['[New York] : Penguin Random House Audio, [2021]']) == (2021, 'Penguin Random House Audio')
 assert parse_about_pub(['Ashland : Blackstone Audio, 2009.', 'Ashland : Blackstone Audio, Inc., 2009.']) == (2009, 'Blackstone Audio')
 
-#'edita brychta as anise, jonathan cake as kurt muller, heidi dippold as sara muller, anna lyse erikson as babette muller, susannah fiedling as marthe de brancovis, lovensky jean-baptiste as joseph taj jegaraj as joshua muller, susan sullivan as fanny farrelly, patrick wenk-wolff as teck de brancovis, matthew wolf as david farrelly, adam wylie as bodo muller ; directed by'
-#'edward asner (the senator), ella joyce (professor hill), paul winfield (judge thomas);
-# performer_intros = {'read by', 'performed by', 'narrated by', 'presented by',
-#        'told by', 'instruction and music by', 'narrated and vocals by',
-#        'hosted by', 'reading by',
-#        'featuring', 'introduced by',
-#        'preformed by', 'ready by', 'performance by', 'live lecture by',
-#        'and by', 'lecture presented by', 'text read by',
-#        'spanish book read by', 'starring','and performed by',
-#        'written and performed by', 'peformed by',
-#        'music by', 'reading of 2013 book by',
-#        'humorous monologues','performed by', 'interviews by',
-#        'song performed by', 'narration and music by', 'perfomed by',
-#        'full cast recording','inspector lestrade played by',
-#        'story selections read by',
-#        'starring:','spoken by', 'directed by','introduction by',
-#        'songs written and performed by', 'this program is read by',
-#        'lectures by', 'volume 1 narrated by',
-#        'starring', 'narrated by',
-#        'with additional narration by',
-#        'narration, music and vocals by',
-#        'with an afterword by', 'story read by',
-#        'instructed by', '[read by', 'music by',
-#        'introduction read by', 'audiobook read by',
-#        'abridged and read by', 'comedy routines performed by',
-#        'written, presented & performed by', 'music by', 'red by',
-#        'narratee by', 'starring by', 'music composed & performed by',
-#        'written and read by', 'performed by',
-#        'translation, essays & commentary by', 'translation', 'essays & commentary by','narrator by',
-#        'foreward read by', 'music by',
-#        'readings by','perfomrmed by',
-#        'bbc full-cast television soundtrack starring','narrated by',
-#        'all selections performed by',
-#        'essays read by', 'sessions 1-3 narrated by',
-#        'davy crockett read by', 'johnny appleseed read by',
-#        'dramatization by', 'excerpts of classical works, by',
-#        'introduced by', 'read and performed by'}
+def date_to_int(x):
+    if isinstance(x, str) and re.match('\d{4}', x):
+        return int(x[:4])
+    else:
+        return np.nan
+
+def get_intros(performers_field):
+    if not pd.api.types.is_list_like(performers_field):
+        return np.nan
+    intros= set()
+    for perf in performers_field:
+        lower = perf.lower()
+        if lower[-1] == '.':
+            lower = lower[:-1]
+        ind = lower.find(' by')
+        if ind >= 0:
+            intro = lower[0:ind+3].strip()
+            intros.add(intro)
+    return list(intros)
+
+def parse_contributors(contributor_list):
+	if not pd.api.types.is_list_like(contributor_list):
+		return np.nan
+	conts = set()
+	for cont in contributor_list:
+		if 'overdrive' in cont.lower():
+			continue
+		ind = cont.find(',')
+		if ind >=0:
+			fname = cont[ind+1:].strip()
+			lname = cont[0:ind].strip()
+			name = fname + " " + lname
+			conts.add(name)
+		else:
+			conts.add(cont)
+	return list(conts)
+
 	   
 def parse_performers(perf_list):
     if not pd.api.types.is_list_like(perf_list):
@@ -88,7 +87,14 @@ def parse_performers(perf_list):
         doc = nlp(perf)
         for ent in doc.ents:
             if ent.label_ == 'PERSON':
-                perfs.add(ent.text)
+                before_char = ''
+                before_word = ''
+                if ent.start_char > 0:
+                    before_char = perf[ent.start_char-1]
+                if ent.start_char >=3:
+                    before_word = perf[ent.start_char-3:ent.start_char-1].lower()
+                if before_word != 'as' and before_char != '(':
+                    perfs.add(ent.text)
     return list(perfs)
 
 
@@ -119,7 +125,6 @@ def get_len_from_desc(desc):
 	
 assert get_len_from_desc(['1 online resource (1 audio file (03 hr., 09 min., 53 sec.))']) == 11393.0
 
-
 		
 bad_entries = {'downloadable audio books', 'audiobooks', 
 	'livres audio', 'juvenile sound recordings', 'live sound recordings'
@@ -134,15 +139,15 @@ bad_entries = {'downloadable audio books', 'audiobooks',
 misspellings = {
 	'apologetic writings': 'apologetic works',
 	'yougn adult fiction': 'young adult fiction', 
-	'action and sdventure comics': 'action and adventure comics'
-	'autobiographies': 'autobiography'
+	'action and sdventure comics': 'action and adventure comics',
+	'autobiographies': 'autobiography',
 	'bildsdungsroman': 'bildungsromans',
 	'bildungromans': 'bildungsromans',
 	'biographies': 'biography',
 	'cozy mystery stories': 'cozy mysteries',
 	'electornic books': 'electronic books',
 	'essays': 'essay',
-	'fjuvenile fiction', 'juvenile fiction',
+	'fjuvenile fiction': 'juvenile fiction',
 	'fcition': 'fiction',
 	'fction': 'fiction',
 	'ffiction': 'fiction',
@@ -151,7 +156,7 @@ misspellings = {
 	'ficton': 'fiction',
 	'fictions': 'fiction',
 	'fiction.fiction': 'fiction',
-	'first person narratives': 'first person narrative'
+	'first person narratives': 'first person narrative',
 	'horror tales': 'horror stories',
 	'humerous fiction': 'humorous fiction',
 	'juvenilefiction': 'juvenile fiction',
@@ -165,33 +170,32 @@ misspellings = {
 	'romantic suspence fiction': 'romantic suspense fiction',
 }
 
-def get_genres(genre_field):
-	if not pd.api.types.is_list_like(genre_field):
-		return np.nan
-	else:
-		genres = set()
-		for genre in genre_field:
-			lower = genre.lower()
-			if lower[-1] == '.':
-				lower = lower[:-1]
-			if lower in misspellings:
-				lower = misspellings[lower]
-			if lower not in bad_genres:
-				genres.add(lower)
-				
-			if '^' in lower:
-				subs = (s.strip() for s in lowercase.split('^'))
-			elif "&lt;delimit&gt;" in lower:
-				subs = (s.strip() for s in lowercase.split("&lt;delimit&gt;"))
-			elif " - " in lower:
-				subs = (s.strip() for s in lowercase.split(' — '))
-			if subs:
-				for sub_genre in subs:
-					if sub_genre in misspellings:
-						sub_genre = misspellings[sub_genre]
-					if sub_genre not in bad_genres:
-						genres.add(sub_genre)
-		return list(genres)
+def get_subject_genres(field):
+    if not pd.api.types.is_list_like(field):
+        return np.nan
+    elems = set()
+    for elem in field:
+        lower = elem.lower()
+        if len(lower) == 0:
+            continue
+        if lower[-1] == '.':
+            lower = lower[:-1]
+        if lower in misspellings:
+            lower = misspellings[lower]
+        if lower in bad_entries:
+            continue
+        separators = ['^', "&lt;delimit&gt;", " — ", "--", "/"]
+        separator_found = False
+        for sep in separators:
+            if sep in lower:
+                separator_found = True
+                subs = [s.strip() for s in lower.split(sep)]
+                elems.update(get_subject_genres(subs))
+                break
+        if not separator_found:
+            elems.add(lower)
+    return list(elems)
+
 
 def first_list_entry(field, null = np.nan):
   if pd.api.types.is_list_like(field):
@@ -221,7 +225,7 @@ def parse_author(author):
 	if len(parts) == 1:
 		return parts[0]
 	else:
-		return " ".join([parts[1], parts[0]])	
+		return " ".join([parts[1], parts[0]])
 	
 	 
 # fields we want:
@@ -245,7 +249,41 @@ def parse_author(author):
 # fields.CALLCLASS.CALLNO_DDC = list dewey decimal call number, 39
 # 'fields.NOTES.GENERAL', 42, sometimes includes duration
 
+def combine_conts(row):
+    keys = ['parsed_contributors', 'parsed_performers']
+    return combine_col_lists(row, keys)
 
+def combine_col_lists(row, keys):
+    comb = set()
+    for key in keys:
+        if not pd.api.types.is_list_like(row[key]):
+            continue
+        comb.update(row[key])
+    if comb:
+        return list(comb)
+    else:
+        return np.nan
+
+def populate_field(row, left_field, right_field):
+    left_val = row[left_field]
+    right_val = row[right_field]
+    is_np_nan = isinstance(left_val, float) and np.isnan(left_val)
+    if not left_val or is_np_nan:
+        if row[right_field] and not(is_np_nan):
+            return row[right_field]
+    else:
+        return row[left_field]
+		
+def normalize_author(field):
+    if isinstance(field, str):
+        parts = field.split(',')
+        if len(parts) == 1:
+            return field
+        else:
+            fname = parts[1].strip()
+            lname = parts[0].strip()
+            name = fname + " " + lname
+            return name.lower()
 
 def get_relevant_info_audio(df):
 	cleaned = df[['id']].copy()
@@ -256,26 +294,34 @@ def get_relevant_info_audio(df):
 	cleaned['description'] = df['brief.description'].copy()
 	
 	cleaned['author'] = df['fields.DETAILS.CREATORS'].apply(first_list_entry)
+	cleaned['normalized_author'] = cleaned['author'].apply(normalize_author)
 	
 	cleaned[['publisher_year', 'publisher']] = (pd.DataFrame(df['fields.DETAILS.PUBLICATION']
 	.fillna(False).apply(parse_about_pub)
 	.tolist(), index=df.index)
 	)
-	
+		
 	# extract book length from either descripiton or notes column, depending on which has it
-	cleaned['desc_len'] = df['fields.DETAILS.DESCRIPTION'].apply(get_len_from_desc)
-	cleaned['notes_len'] = df['fields.NOTES.GENERAL'].apply(get_len_from_notes)
-	cleaned['book_len'] = cleaned[['desc_len', 'notes_len']].max(axis=1)
-	cleaned.drop(['desc_len', 'notes_len'], axis=1)
+	df['desc_len'] = df['fields.DETAILS.DESCRIPTION'].apply(get_len_from_desc) 
+	df['notes_len'] = df['fields.NOTES.GENERAL'].apply(get_len_from_notes)
+	cleaned['book_len'] = df[['desc_len', 'notes_len']].max(axis=1)
+	cleaned['desc_words'] = df['fields.DETAILS.DESCRIPTION'].apply(first_list_entry)
+	cleaned['notes_words'] = df['fields.NOTES.GENERAL'].apply(first_list_entry)
+	#cleaned.drop(['desc_len', 'notes_len'], axis=1)
 	
 	
 	cleaned['all_titles'] = df['fields.DETAILS.TITLE'].copy()
 	cleaned['all_sumaries'] = df['fields.DETAILS.SUMMARY'].copy()
+	
+	df['parsed_contributors'] = df['fields.CONTRIBUTORS.CONTRIBUTOR_NAME'].apply(parse_contributors)
+	df['parsed_performers'] = df['fields.CONTRIBUTORS.CONTRIBUTOR_PERFORMERS'].apply(parse_performers)
+	cleaned['parsed_contributors'] = df.apply(combine_conts, axis=1)
+	
 	cleaned['contributors'] = df['fields.CONTRIBUTORS.CONTRIBUTOR_NAME'].copy()
 	cleaned['performers'] = df['fields.CONTRIBUTORS.CONTRIBUTOR_PERFORMERS'].copy()
 	
-	cleaned['subjects'] = df['fields.SUBJECTGENRE.SUBJECT'].apply(get_subjects)
-	cleaned['genres'] = df['fields.SUBJECTGENRE.GENRE'].apply(get_genres)
+	cleaned['subjects'] = df['fields.SUBJECTGENRE.SUBJECT'].apply(get_subject_genres)
+	cleaned['genres'] = df['fields.SUBJECTGENRE.GENRE'].apply(get_subject_genres)
 	
 	cleaned['isbns'] = df['fields.IDENTIFIERS.ISBN'].copy()
 	cleaned['first_isbn'] = cleaned['isbns'].apply(extract_first_isbn)
@@ -287,19 +333,39 @@ def get_relevant_info_audio(df):
 	cleaned['jacket.medium'] = df['brief.coverImage.medium'].copy()
 	cleaned['jacket.large'] = df['brief.coverImage.large'].copy()
 	
-	 
-
-	return cleaned.drop_duplicates(subset=['id'], keep='first').set_index('id')
+	to_return = cleaned.drop_duplicates(subset=['id'], keep='first').set_index('id')
+	fix_audio_errors(to_return)
+	return to_return
 	 
 def get_relevant_info_related(df):
-	return df
+	cleaned = df[['audioId']].copy()
+	cleaned['genres'] = df['genreForm'].apply(get_subject_genres)
+	cleaned['subjects'] = df['compositeSubjectHeadings'].apply(get_subject_genres)
+	cleaned['author'] = df['authors'].apply(first_list_entry)
+	cleaned['normalized_author'] = cleaned['author'].apply(normalize_author)
+	cleaned['consumptionFormat'] = df['consumptionFormat'].copy()
+	cleaned['contentType'] = df['contentType'].fillna('UNDETERMINED')
+	cleaned['publicationDate'] = df['publicationDate'].apply(date_to_int)
+
+	cleaned['primaryLanguage'] = df['primaryLanguage'].fillna('UNDETERMINED')
+	fields_to_copy = ['id', 'format', 'title', 'subtitle', 
+						'description', 'isbns', 'audiences',
+						'subjectHeadings', 'description',
+						'jacket.small', 'jacket.medium', 'jacket.large', 'rating.averageRating', 'rating.totalCount']
+	for field in fields_to_copy:
+		cleaned[field] = df[field].copy()
 	
+	to_return = cleaned.drop_duplicates(subset=['id'], keep='first').set_index('id')
+	fix_related_errors(to_return)
+	return to_return
+
+
 
 
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("table_name", 
-								help="what kind of table are we cleaning")
+								help="which table are we cleaning")
 	parser.add_argument("input_path",
 								help="filename we're reading from")
 	parser.add_argument("output_path",

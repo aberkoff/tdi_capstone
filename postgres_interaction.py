@@ -7,6 +7,30 @@ import argparse
 import sys
 
 
+def get_neighbors_info(nearest):
+	nearest_tuple = tuple(nearest)
+	table = metadata_obj.tables['book_features']
+	sc_num = table.c['id']
+	icon_url = table.c['jacket.small']
+	title = table.c['title']
+	subtitle = table.c['subtitle']
+	author = table.c['author']
+	query = db.select(sc_num, icon_url, title, subtitle, author).where(text("id IN {id_tuple}".format(id_tuple=nearest_tuple)))
+	with engine.connect() as conn:
+		result = conn.execute(query)
+		conn.commit()
+	return result
+
+def get_neighbors(sc_num, num_neighbors=25):
+	table = metadata_obj.tables['neighbors']
+	sc_num_col = table.c['id']
+	results_cols = map(lambda x: table.c[x], map(str, list(range(1,num_neighbors))))
+	select_statement = db.select(*results_cols).where(sc_num_col == sc_num).fetch(1)
+	with engine.connect() as conn:
+		result = conn.execute(select_statement)
+		conn.commit()
+	return list(result)[0]
+	
 
 def search_books(search_type, search_val, table_name='book_features'):
 	table = metadata_obj.tables[table_name]
@@ -17,8 +41,10 @@ def search_books(search_type, search_val, table_name='book_features'):
 	author = table.c['author']
 	
 	if search_type == 'title':
-		select_statement = db.select(sc_num, icon_url, title, subtitle, author).fetch(10)
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(title.match(search_val)).fetch(10)
 	elif search_type == 'author':
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(author.match(search_val)).fetch(10)
+	elif search_type == 'narrator':
 		select_statement = db.select(sc_num, icon_url, title, subtitle, author).fetch(10)
 	elif search_type == 'sc_number':
 		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(sc_num == search_val)
@@ -40,15 +66,16 @@ def get_book_info(book_id):
 
 	
 def drop_table(table_name):
-    with engine.connect() as conn:
-        conn.execute(text(
-            """
-            DROP TABLE IF EXISTS {}
-            """.format(table_name)
-        ))
+	with engine.connect() as conn:
+		conn.execute(text(
+			"""
+			DROP TABLE IF EXISTS {}
+			""".format(table_name)
+		))
+		conn.commit()
         
         
-def add_record(df, table_name):
+def add_table(df, table_name):
     with engine.connect() as conn:
         df.to_sql(table_name, conn, if_exists = 'append')
         conn.commit()
@@ -92,9 +119,10 @@ def parse_read(args):
 def parse_write(args):
 	table_name = args.table_name
 	print("writing {} to {}...\n".format(args.filename, table_name))
-	table = metadata_obj.tables[table_name]
-	df = pd.read_pickle(filename)
-	add_record(df, table_name)
+	# table may not exist yet...
+	# table = metadata_obj.tables[table_name]
+	df = pd.read_pickle(args.filename)
+	add_table(df, table_name)
 	
 def parse_delete(args):
 	table_name = args.table_name
@@ -109,17 +137,23 @@ def parse_search(args):
 	result = search_books(args.by, args.value, args.table_name)
 	args.outfile.write(str(list(result)))
 	
+def parse_neighbors(args):
+	neighbors = get_neighbors(args.sc_num)
+	result = get_neighbors_info(neighbors)
+	for res in result:
+		args.outfile.write(str(res))
 	
 	
 	
+	
+
+
+table_names = ['book_ids', 'book_features', 'related_books', 'neighbors', 'joined']
+
 
 engine = get_db_engine()
 metadata_obj = MetaData()
 metadata_obj.reflect(bind=engine)
-table_names = ['book_ids', 'book_features', 'related_books', 'tester']
-
-
-
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -138,6 +172,11 @@ def main():
 	delete = subparsers.add_parser('delete', aliases=['d'], help = "drop an sql table")
 	delete.add_argument('table_name', choices = table_names, help = 'name of table to drop')
 	delete.set_defaults(func=parse_delete)
+	
+	neighbors = subparsers.add_parser('neighbors', aliases=['n'], help = "query neighbors")
+	neighbors.add_argument('sc_num', help = 'the sc_num of the book you are querying')
+	neighbors.add_argument('outfile', nargs='?', type=argparse.FileType('w'), default=sys.stdout, help = "where to print neighbors")
+	neighbors.set_defaults(func=parse_neighbors)
 
 	search = subparsers.add_parser('search', aliases=['s'], help = "search an sql table")
 	search.add_argument('table_name', choices = table_names, help = 'name of table to search')
@@ -147,7 +186,7 @@ def main():
 						help = 'what to search by (default = sc_number)'
 						)
 	search.add_argument('--value', '-v', help = "value to search for", required = True)
-	parser.add_argument('outfile', nargs='?', type=argparse.FileType('w'), default=sys.stdout, help = "where to print search results")
+	search.add_argument('outfile', nargs='?', type=argparse.FileType('w'), default=sys.stdout, help = "where to print search results")
 	search.set_defaults(func=parse_search)
 	
 	
@@ -179,6 +218,9 @@ def main():
 if __name__ == "__main__":
     main()
 	
+engine = get_db_engine()
+metadata_obj = MetaData()
+metadata_obj.reflect(bind=engine)
     
 
 

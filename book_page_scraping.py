@@ -9,7 +9,26 @@ import argparse
 import logging
 from postgres_interaction import get_db_engine, get_book_ids
 
-
+@retry(exceptions=Exception, tries=2, delay=2, 
+       max_delay=None, backoff=1, jitter=(1,10))
+def get_availability(book_id):
+    # try:
+    page_url = 'https://seattle.bibliocommons.com/v2/record/{}'.format(book_id)
+    resp = requests.get(page_url)
+    soup = BeautifulSoup(resp.content, "html.parser")
+    book_info_json = soup.find('script', attrs={'type':'application/json',
+                                           'data-iso-key':'_0'
+                                      })
+    book_info = json.loads(book_info_json.text)
+    avail_dict = book_info['entities']['bibs'][book_id]['availability']
+    
+    return_dict = dict()
+    
+    return_dict['available'] = avail_dict['availableCopies']
+    return_dict['total'] = avail_dict['totalCopies']
+    return_dict['held'] = avail_dict['heldCopies']
+    return_dict['on_order'] = avail_dict['onOrderCopies']
+    return return_dict
 
 
 @retry(exceptions=Exception, tries=5, delay=2, 

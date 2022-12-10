@@ -9,6 +9,7 @@
 		 <select class = "form-select" id="search_type" name="search_type">
 			 <option value="title">Title</option>
 			 <option value="author">Author</option>
+			 <option value="author">Narrator</option>
 			 <option value="sc_number">SC Number</option>
 		 </select> 
     </div>
@@ -21,6 +22,7 @@
     <div class="form-group">
         <button type="submit" class="btn btn-primary">Search</button>
     </div>
+{% if data %}
  </form>
 	 <table class="table">
 	   <thead>
@@ -61,10 +63,7 @@
          {% endfor %}
 	   </tbody>
 	 </table>
-
-	 
-	 
-
+{% endif %}
 {% endblock %}
 
 
