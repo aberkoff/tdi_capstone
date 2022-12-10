@@ -40,10 +40,12 @@ def search_books(search_type, search_val, table_name='book_features'):
 	subtitle = table.c['subtitle']
 	author = table.c['author']
 	
+	search_phrase = " & ".join(search_val.split())
+	
 	if search_type == 'title':
-		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(title.match(search_val)).fetch(10)
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(title.match(search_phrase)).fetch(10)
 	elif search_type == 'author':
-		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(author.match(search_val)).fetch(10)
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(author.match(search_phrase)).fetch(10)
 	elif search_type == 'narrator':
 		select_statement = db.select(sc_num, icon_url, title, subtitle, author).fetch(10)
 	elif search_type == 'sc_number':
