@@ -9,6 +9,3 @@ numpy
 gunicorn
 psycopg2
 altair >= 4.2.0
-spacy
-spacy-model-en_core_web_sm
-sklearn
