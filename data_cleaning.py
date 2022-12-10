@@ -2,8 +2,8 @@ import pandas as pd
 import re
 import numpy as np
 import argparse
-import spacy
-nlp = spacy.load("en_core_web_sm")
+#import spacy
+#nlp = spacy.load("en_core_web_sm")
 
 
 
