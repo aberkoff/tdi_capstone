@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% from "macros.html" import collapsible_chart with context %}
+{% from "macros.html" import accordion_item with context %}
+{% block head %}
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm//vega@5"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm//vega-lite@4.17.0"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm//vega-embed@6"></script>
+{% endblock %}
+{% block title %}About the Site{% endblock %}
+{% block content %}
+
+
+
+    <h1>About this Site</h1>
+	
+
+<div class="accordion" id="aboutAccordion">
+
+	{% call accordion_item('Introduction', 'item1', 'aboutAccordion') %}
+	This website is a book recommender system I implemented as a Capstone project in completion of the requirements of of the Data Science Fellowship program at <a href = "https://www.thedataincubator.com/">The Data Incubator</a>. The code for my project is on <a href = "https://github.com/aberkoff/tdi_capstone">github</a>. Below is a brief summary of the work I did on this project.
+	{% endcall %}
+	
+	{% call accordion_item('Data Gathering', 'item2', 'aboutAccordion') %}
+	<p>To start with, I needed a record of every downloadable audiobook in the Seattle Public Library system. The Seattle public library uses <a href = "https://www.bibliocommons.com/">Bibliocommons</a> for their online card catalog, and while some googling suggests that Bibliocommons used to have a public API, it no longer does. However, it's straightforward to run a <a href = "https://seattle.bibliocommons.com/v2/search?custom_edit=false&query=formatcode%3A%28AB+%29&searchType=bl&suppress=true">card catalog search</a> for all books with the format "Downloadable Audiobook."  As seen in <code>card_catalog_scraping.py</code> on my github, I used Python's <code>requests</code> library to visit each results page for books with <code>formatcode:(AB )</code>.</p>
+
+	<p>The card catalog assigns a unique identifier to each book in its system of the form: <code>S30Cxxxxxx</code>. When you visit a page of the form <code>https://seattle.bibliocommons.com/v2/record/S30Cxxxxxxx</code>, it appears that a query to an internal database is run on that id, a <code>JSON</code> object is returned, and some javascript is run to populate an html page with the data inside that object. So, once I had gotten a complete list of the audiobooks in the Seattle Public Library system, I used the <code>requests</code> library to visit the page for each individual audiobook. At the time of scraping, there were 56571 audiobooks in the system, so this process took several days!
+		
+		<p>Happily, in the page for each book, the object with data about that book is stored inside a <code>&lt;script&gt;</code> tag. So instead of having to do a careful parse of different <code>html</code> elements, I could use Python's <code>BeautifulSoup</code> library to simply find the correct <code>&lt;script&gt;</code> tag to read the <code>JSON</code> object and store it to a <code>Pandas</code> dataframe.  My code to do this can be seen in <code>book_page_scraping.py</code></p>
+  
+	<p>Of course this process was more complicated than my brief summary sugests&mdash;There were <code>dicts</code> nested inside <code>dicts</code> nested inside <code>dicts</code> several layers down, and a lot of the data was useless or redundant. I ended up focusing on data within a few sub-dicts labeled "bibliography". I found one that had information pertaining to the audiobook itself and another with information pertaining to "related" books (aka all the formats (e.g. ebook, audiobook, paper book) in which the library owned the same title.) I saved this information into two separate dataframes. </p>
+	{% endcall %}
+	
+	{% call accordion_item('Data Cleaning', 'item3', 'aboutAccordion') %}
+	<p>Even though I was choosy about what information I saved from each book, I still had a huge number of attributes about each one. Furthermore, many had redundant, missing, or malformed data. For example, as seen in the chart below, in the original audiobook dataframe, I had 86 different columns of information about each book, many of which were empty or nearly empty. </p>
+	{{collapsible_chart('audio_fields_uncleaned.json', 'All the Audibook Fields', 'img1')}}
+	
+	<p>
+	There were 59 fields for each entry in my related books table, and a much larger fraction of the fields had entries for each book.
+	</p>
+	{{collapsible_chart('related_fields_uncleaned.json', 'All the Related Books Fields', 'img2')}}
+	
+	However, getting that data into a usable form was still a challenge, and something that took a large portion of the time I spent on this project. For example, the 'genre' field for each book consisted of a list of entries, each of which contained one or more genres.  Some examples: 
+	<ul>
+		<li><code>'Superhero fiction'</code></li> 
+		<li><code>'Tennis stories.'</code></li> 
+		<li><code>'Japanese fiction — Translations into English.'</code></li>
+		<li><code>'|FICTION / Mystery & Detective / Cozy / Culinary^FICTION / Mystery & Detective / Amateur Sleuth^FICTION / Mystery & Detective / Women Sleuths.'</code></li>
+	</ul>
+	<p>As you can see, parsing the genres involved carefully figuring out how to parse individual entries and get them into a standardized form.  After an initial parsing, I was left with a set of genres that looked like this:</p>
+	{{collapsible_chart('genre_distribution_audio.json', 'Most Popular Audio Genres', 'img3')}}
+	<p>By far, the most popular genre was "downloadable audiobook", and unfortunately many books didn't have <i>any</i> genre listed except for that. Luckily, I had the genres from my related books table as well. While ebooks from that table might have the genre 'ebook', I hoped that paper books might have a higher proportion of genres that usefully described the work.  Here are the most popular genres from the related books table. </p>
+	{{collapsible_chart('genre_distribution_related.json', 'Most Popular Related Genres', 'img4')}}
+	<p>Clearly, some further cleaning was needed. I made a set of "bad_entries" to remove from my genres list, and while I was at it, I made a dict of misspellings, so that, for example, <code>'fcition'</code>, <code>'fction'</code>,<code>'ffiction'</code>,
+<code>'ficion'</code>,<code>'ficition'</code>,<code>'ficton'</code>,<code>'fictions'</code>, <code>'fiction.fiction'</code>, and <code>'fiction'</code> would all map to the same thing.</p>
+<p>The lists of genres I got after cleaning were much more reasonable, and as one would hope, were quite similar to each other.</p>
+{{collapsible_chart('genre_distribution_audio_cleaned.json', 'Most Popular Audio Genres after Cleaning', 'img5')}}
+{{collapsible_chart('genre_distribution_related_cleaned.json', 'Most Popular Related Genres after Cleaning', 'img6')}}
+
+<p>Cleaning and parsing the remaining fields required a lot more work, but the details of the work are not particularly illuminating. Two highlights are:</p>
+<ul>
+	<li><p>The Audiobook length, when it was listed, was contained in a string in either <code>'fields.DETAILS.DESCRIPTION'</code> or <code>'fields.NOTES.GENERAL'</code>. Overall, I found lengths for about 70% of the books in the collection. I thought book length  would make an interesting feature to include in my recommendation algorithm, because, for example, if you're searching for something to listen to on a 12 hour car trip, you might not want to receive something that's only 2 hours long as a recommendation. As you can see from the plot below, there's a spike in lengths of about 2-3 hrs. This is likely due to the recorded plays in the library's collection, which tend to be about that long. Because I had so much missing length data, I didn't end up using it as a feature in my recommender, but I did find that 94% of the books for which I was missing length data had a listed isbn. To get the missing length information, I could scrape a <a href = "https://spl.overdrive.com/advanced-search"><i>different</i> database</a> provided by OverDrive Media, the company that provides ebooks and audiobooks to public libraries, by searching by isbn for each of the books I needed information for, and taking the length information from there.</p>
+		<img src='static/book_lens.png'></li>
+		<li><p>While I parsed most fields using a combination of Python string fuctions and regular expressions, I did use entity recognition in <code>spaCy</code> to get narrator names from the <code>Performers</code> field of my audiobook dataset. I ended up needing to do a little bit of parsing with regular expression parsing anyway, as even though SpaCy was fairly good at recognizing person names, when a book had a full-cast recording, there were entries of the form "<code>featuring [Performer Name] as [Character Name]</code>", and I did not want to mistake character names for narrators.</p> </li>
+</ul>
+
+<p>
+My code for cleaning all the fields in my dataframes is contained in <code>data_cleaning.py</code>. After cleaning, here are the fields I was left with:
+</p>
+{{collapsible_chart('audio_missing_fields.json', 'Fields in the Cleaned Audio Dataset', 'img7')}}
+{{collapsible_chart('related_fields_cleaned.json', 'Fields in the Cleaned Related Books Dataset', 'img8')}}
+	
+<p>
+I then joined the two tables in order to combine data that was present in one and not the other.  Here are the fields of the joined dataset. 
+</p>
+{{collapsible_chart('joined_missing_fields.json', 'Fields in the Joined Datasets', 'img9')}}
+
+
+	
+	{% endcall %}
+	
+	{% call accordion_item('Machine Learning', 'item4', 'aboutAccordion') %}
+<p>
+	After joining, I was ready to implement my recommendation algorithm.  Since, after cleaning, I only had usable genre information for 75% of the books, I combined the genre and subject fields into a hybrid 'subject-genre' field.  I one-hot-encoded fields containing the books' authors, subject-genres, narrators, languages, audiences, and content type (i.e. Fiction vs. Non-Fiction). I also scaled down the books' release years to range from 0 to 1, and added that as a feature.  All this one-hot-encoding left me with a matrix of 78519 features, so I needed to do some dimensionality reduction. I ran <code>SciKit Learn</code>'s truncated Singular Value Decomposition algorithm to get down to 100 features, and then ran its K-Nearest Neighbors algorithm on that. My code is all in <code>nearest_neighbors.py</code>
+</p>
+	{% endcall %}
+	
+	{% call accordion_item('Displaying the Results', 'item5', 'aboutAccordion') %}
+	Finally, it was time to put all my information into the website you're currently on. This site is implemented using <code>Flask</code>, and information about each book is stored in a postgres database. In order to make sure I could quickly return the nearest neighbors for each book I searched for, I pre-computed the 25 nearest neighbors for each book in my dataset, and saved the ids for each book's nearest neighbors in another table in the database. My code for interacting with the database is in <code>postgres_interaction.py</code>. 
+	<p>Originally, my plan for this project was to recommend books based not only on similarity, but also on their likelihood of being available. Using a <a href = "https://data.seattle.gov/Community/Checkouts-by-Title/tmmm-ytt6">dataset</a> of number of checkouts per title per month for the books in the Seattle Public Library System, I hoped to predict which books were most likely to be available. While I still think this is a worthwhile direction to pursue, to be useful, I'd need to also collect data on how many licenses for each book the library owns. The chart below shows the number of distinct titles and the total number of checkouts of audiobooks over time. As you can see, while the numbers are correlated, the number of checkouts grows faster than the number of distinct titles. This happens when the library has multiple licenses for certain titles, allowing more users to check out copies at once. The dataset linked above does not keep track of number of licenses available, but that information can be scraped from the card catalog website. In fact, I went back and scraped that data in <code>availability_scraping.py</code>.  </p>
+	<img src='static/books_over_time.png'>
+	<p>While I have not yet had the time to incorporate this historical checkout data into my recommendation algorithm, I wanted to make sure the user still had some information about which books are available to check out. So whenever a book's page is called up on my website, I call up the corresponding page on the Seattle Public Library, scrape that for the number of copies available, and print that information on my page. </p>
+	<p>The code for my website is in <code>book_recommender.py</code> and in all the html files in the <code>templates</code> directory.</p>
+	{% endcall %}
+
+	
+</div>
+
+{% endblock %}

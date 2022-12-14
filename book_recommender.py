@@ -4,22 +4,32 @@ import sqlalchemy as db
 from sqlalchemy import text
 # from werkzeug.exceptions import abort
 import os
+import json
 
 from postgres_interaction import search_books, get_book_info, get_neighbors, get_neighbors_info
 from data_cleaning import parse_author
 from book_page_scraping import get_availability
 
-
+def parse_performers(perf):
+	perf = perf[1:-1]
+	parts = perf.split('"')
+	return ''.join(parts)
 
 app = Flask(__name__)
 
 @app.context_processor
 def process_author():
-    return dict(parse_author = parse_author)
+    return dict(parse_author = parse_author, parse_performers=parse_performers)
+	
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+	
+@app.route('/about')
+def about():
+	return render_template('about.html')
 	 
 @app.route('/search', methods=('GET', 'POST'))
 def search():
@@ -39,6 +49,14 @@ def book(book_id):
 		neighbors = get_neighbors_info(nearest)
 		return render_template('book.html', data=book_info, neighbors=neighbors, availability = availability)
 	return render_template('book.html', data=book_info, availability=availability)
+
+@app.route('/chart/<chart_name>')
+def chart(chart_name):
+	filename = 'static/{chart_name}.json'.format(chart_name = chart_name)
+	f = open (filename, "r")
+	chart = f.read()
+	return render_template('altair.html', chart=chart)
+
 	
 	
 	

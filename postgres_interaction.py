@@ -15,7 +15,8 @@ def get_neighbors_info(nearest):
 	title = table.c['title']
 	subtitle = table.c['subtitle']
 	author = table.c['author']
-	query = db.select(sc_num, icon_url, title, subtitle, author).where(text("id IN {id_tuple}".format(id_tuple=nearest_tuple)))
+	performers = table.c['performers']
+	query = db.select(sc_num, icon_url, title, subtitle, author, performers).where(text("id IN {id_tuple}".format(id_tuple=nearest_tuple)))
 	with engine.connect() as conn:
 		result = conn.execute(query)
 		conn.commit()
@@ -39,6 +40,7 @@ def search_books(search_type, search_val, table_name='book_features'):
 	title = table.c['title']
 	subtitle = table.c['subtitle']
 	author = table.c['author']
+	performer = table.c['performers']
 	
 	search_phrase = " & ".join(search_val.split())
 	
@@ -47,7 +49,7 @@ def search_books(search_type, search_val, table_name='book_features'):
 	elif search_type == 'author':
 		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(author.match(search_phrase)).fetch(10)
 	elif search_type == 'narrator':
-		select_statement = db.select(sc_num, icon_url, title, subtitle, author).fetch(10)
+		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(performer.match(search_phrase)).fetch(10)
 	elif search_type == 'sc_number':
 		select_statement = db.select(sc_num, icon_url, title, subtitle, author).where(sc_num == search_val)
 	else:

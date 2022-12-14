@@ -1,0 +1,46 @@
+
+
+{% macro chart(chart, chart_id) %}
+<div id = "vis_{{chart_id}}">
+    <script>
+	  	var spec = "{{ url_for('static', filename=chart) | safe }}"
+      	vegaEmbed("#vis_{{chart_id}}", spec);
+    </script>
+</div>
+{%endmacro %}
+{% macro collapsible_chart(chart, text, chart_id) %}
+<div class="accordion" id="{{chart_id}}_container">
+	<div class="accordion-item">
+		<h2 class="accordion-header" id="{{chart_id}}_heading">
+			<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{chart_id}}_collapse"
+			aria-expanded="false" aria-controls="{{chart_id}}_collapse">
+			{{text}}
+			</button>
+		</h2>
+		<div id="{{chart_id}}_collapse" class="accordion-collapse collapse" aria-labelledby="{{chart_id}}_heading"
+		data-bs-parent="#{{chart_id}}_container">
+			<div class="accordion-body" id="vis_{{chart_id}}">
+    			<script>
+	  				var spec = "{{ url_for('static', filename=chart) | safe }}"
+      				vegaEmbed("#vis_{{chart_id}}", spec);
+    				</script>
+			</div>
+		</div>
+	</div>
+</div>
+{% endmacro %}
+
+{% macro accordion_item(title, item_id, parent) %}
+<div class="accordion-item">
+	<h2 class="accordion-header" id="{{item_id}}_heading">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{item_id}}_collapse" aria-expanded="false" aria-controls="{{item_id}}_collapse">
+        {{title}}
+      </button>
+    </h2>
+    <div id="{{item_id}}_collapse" class="accordion-collapse collapse" aria-labelledby="{{item_id}}_heading">
+      <div class="accordion-body">
+              {{ caller() }}
+      </div>
+    </div>
+  </div>
+{% endmacro %}
